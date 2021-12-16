@@ -1,0 +1,102 @@
+/* How many loans have been given out for each reason */
+--Ans: 96,302 total loans given in 12 different reasons
+
+SELECT  lr.reason, COUNT(cd.loan_id)
+FROM loanreason lr 
+	JOIN customerdata cd ON lr.reasoncode = cd.reason_code
+GROUP BY 1
+ORDER BY 2 DESC
+
+---
+
+/* What is the average loan size for each reason code? */
+--Ans: The highest AVG amount is $16,428 for Home Buying, but the most commonly requested loan id for Debt Consolidation and the AVG amount is $15,963.
+
+SELECT lr.reason, AVG(ld.loan_amnt):: money as "Avg_Loan"
+		,ROUND(((SUM(ld.loan_amnt)/ SUM(SUM(ld.loan_amnt)) over())*100),3) as pctge_of_all_loans
+		,SUM(SUM(ld.loan_amnt)) over():: money as total_loan 
+FROM customerdata cd
+	JOIN loandata ld ON (CAST(ld.loan_id AS int) = cd.loan_id) 
+	JOIN loanreason lr ON lr.reasoncode = cd.reason_code
+GROUP BY 1
+ORDER BY 3 DESC
+
+--- 
+
+/* Should a riskier loan mean a higher interest rate? Does a customer with a riskier profile borrow more? */
+--Ans: Yes to both. It has meant historically that riskier loans carry higher interests and tend to borrow higher amounts. 
+
+SELECT AVG(ld.loan_amnt)::money as avg_loan_amnt
+	, AVG(ld.int_rate) as avg_int_rate
+	, cd.grade
+FROM loandata ld
+	JOIN customerdata cd ON ((ld.loan_id :: int) = cd.loan_id)
+GROUP BY 3	
+ORDER BY 3
+
+---
+
+/* Should a riskier loan mean a higher interest rate? 
+Does a customer with a riskier profile borrow more?*/
+--Ans: Yes to both. It has meant historically that riskier loans carry higher interests and tend to borrow higher amounts. 
+
+SELECT AVG(ld.loan_amnt)::money as avg_loan_amnt
+	, AVG(ld.int_rate) as avg_int_rate
+	, cd.grade
+FROM loandata ld
+	JOIN customerdata cd ON ((ld.loan_id :: int) = cd.loan_id)
+GROUP BY 3	
+ORDER BY 3
+
+
+SELECT cd.addr_state, cd.loan_id, ld.issue_date, ld.term_months, ld.int_rate, SUM(ld.loan_amnt):: money
+FROM customerdata cd
+JOIN loandata ld ON (CAST(ld.loan_id as int)) = cd.loan_id
+WHERE ld.term_months::int > 36
+GROUP BY 1,2,3,4,5
+HAVING ld.int_rate::float > 0.3
+ORDER BY 6 DESC
+LIMIT 5
+
+---
+
+/* On average, how much do renters borrow as opposed to those with a mortgage? */
+ --Ans: Mortgage burrow on average $3.6K more than renters, having those with a mortgage borrowing in average $16.5K versus renters $12.9K.
+
+SELECT DISTINCT(cd.home_ownership), AVG(ld.loan_amnt)::money
+FROM customerdata cd
+	JOIN loandata ld ON CAST(ld.loan_id as int) = cd.loan_id
+WHERE cd.home_ownership ILIKE 'Rent' 
+	OR cd.home_ownership ILIKE 'Mort%'
+GROUP BY 1
+ORDER BY 2 DESC
+
+---
+
+/* How many loans are currently late? */
+--Ans1: Between 16 - 30 days late are 103 loans that represent 10% of total loans, and between 31 and 120 days late are 126 loans that account for 13% of total loans.
+
+SELECT ls.loan_status, COUNT(ld.loan_id), COUNT(ld.loan_id)::float/96302*100 Percentage_of_Total
+FROM loanstatus ls
+JOIN loandata ld USING (loan_status_code)
+WHERE ls.loan_status ILIKE 'late%'
+GROUP BY 1
+
+-- Ans2: Considering the loan_amnt we can see that loans between $5K and $15K tend to be most late in both time periods, 16-30 days and 31- 120 days: 
+
+SELECT ls.loan_status,COUNT(ld.loan_id) number_of_loans,
+	CASE
+		WHEN loan_amnt <5000 THEN 'Low'
+		WHEN loan_amnt BETWEEN 5000 AND 15000 THEN 'Medium'
+		WHEN loan_amnt BETWEEN 15001 AND 25000 THEN 'High'
+		WHEN loan_amnt BETWEEN 25001 AND 40000 THEN 'Very_High'
+		ELSE 'Unknown'
+	END AS Loan_Amnt_Category
+	, COUNT(ld.loan_id)::float/96302*100 Percentage_of_Total 
+FROM loanstatus ls
+	JOIN loandata ld USING (loan_status_code)
+WHERE ls.loan_status ILIKE 'late%'
+GROUP BY 1,3
+ORDER BY 4 DESC
+
+--- 
