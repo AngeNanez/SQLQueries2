@@ -1,2 +1,2 @@
 # SQLQueries2
-SQL Queries from Financial Analysis on PGAdmin
+Compilation of queries from Financial Analysis on PGAdmin
